@@ -1,15 +1,20 @@
 package org.romainlavabre.security.config;
 
 import jakarta.servlet.DispatcherType;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -104,7 +109,31 @@ public class Security {
 
     @Bean
     public AuthenticationManager authenticationManager( AuthenticationConfiguration config ) throws Exception {
-        return config.getAuthenticationManager();
+        return new AuthenticationManager() {
+
+            @Autowired
+            protected PasswordEncoder passwordEncoder;
+
+            @Autowired
+            @Qualifier( "userDetailsService" )
+            protected UserDetailsService userDetailsService;
+
+
+            @Override
+            public Authentication authenticate( Authentication authentication ) throws AuthenticationException {
+                UserDetails userDetails = userDetailsService.loadUserByUsername( authentication.getPrincipal().toString() );
+
+                if ( userDetails == null ) {
+                    return authentication;
+                }
+
+                if ( passwordEncoder.matches( authentication.getCredentials().toString(), userDetails.getPassword() ) ) {
+                    return new UsernamePasswordAuthenticationToken( userDetails.getUsername(), userDetails.getPassword(), userDetails.getAuthorities() );
+                }
+
+                return authentication;
+            }
+        };
     }
 
 
