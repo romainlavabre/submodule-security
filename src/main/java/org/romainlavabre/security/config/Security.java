@@ -1,6 +1,8 @@
 package org.romainlavabre.security.config;
 
 import jakarta.servlet.DispatcherType;
+import org.romainlavabre.security.AuthenticationFilter;
+import org.romainlavabre.security.JwtTokenHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +23,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -35,6 +38,15 @@ import java.util.Map;
 @EnableWebSecurity
 public class Security {
     private static final String TOKEN_ROLE_CLAIM = "roles";
+
+    protected final JwtTokenHandler                     jwtTokenHandler;
+    protected final org.romainlavabre.security.Security security;
+
+
+    public Security( JwtTokenHandler jwtTokenHandler, org.romainlavabre.security.Security security ) {
+        this.jwtTokenHandler = jwtTokenHandler;
+        this.security        = security;
+    }
 
 
     @Bean
@@ -67,6 +79,8 @@ public class Security {
         if ( !SecurityConfigurer.get().getInMemoryUsers().isEmpty() ) {
             a.and().httpBasic();
         }
+
+        a.and().addFilterBefore( authenticationFilter(), UsernamePasswordAuthenticationFilter.class );
 
         return a.and().build();
     }
@@ -108,6 +122,12 @@ public class Security {
 
 
     @Bean
+    public AuthenticationFilter authenticationFilter() {
+        return new AuthenticationFilter( jwtTokenHandler, security );
+    }
+
+
+    @Bean
     public AuthenticationManager authenticationManager( AuthenticationConfiguration config ) throws Exception {
         return new AuthenticationManager() {
 
@@ -123,7 +143,7 @@ public class Security {
             public Authentication authenticate( Authentication authentication ) throws AuthenticationException {
                 UserDetails userDetails = userDetailsService.loadUserByUsername( authentication.getPrincipal().toString() );
 
-                if ( userDetails == null ) {
+                if ( userDetails == null || userDetails.getUsername() == null || userDetails.getPassword() == null ) {
                     return authentication;
                 }
 

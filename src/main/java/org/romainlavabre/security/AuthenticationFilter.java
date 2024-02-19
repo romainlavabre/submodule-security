@@ -14,18 +14,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
 import org.springframework.web.filter.GenericFilterBean;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 
 /**
  * @author Romain Lavabre <romainlavabre98@gmail.com>
  */
-@Service
 public class AuthenticationFilter extends GenericFilterBean {
 
     private static final String                BEARER = "Bearer";
@@ -84,7 +82,7 @@ public class AuthenticationFilter extends GenericFilterBean {
         securityImpl.hydrate(
                 Long.parseLong( claims.getBody().getSubject() ),
                 claims.getBody().get( "username" ).toString(),
-                new HashSet<>( Arrays.asList( claims.getBody().get( "roles" ).toString().split( "," ) ) )
+                new HashSet<>( claims.getBody().get( "roles", List.class ) )
         );
     }
 

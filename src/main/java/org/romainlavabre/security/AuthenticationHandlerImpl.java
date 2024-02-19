@@ -9,6 +9,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.StringJoiner;
+
 /**
  * @author Romain Lavabre <romainlavabre98@gmail.com>
  */
@@ -25,10 +28,16 @@ public class AuthenticationHandlerImpl implements AuthenticationHandler {
 
     @Override
     public Authentication getAuthentication( final Jws< Claims > token ) {
+        StringJoiner stringJoiner = new StringJoiner( "," );
+
+        for ( Object role : token.getBody().get( "roles", List.class ) ) {
+            stringJoiner.add( role.toString() );
+        }
+
         return new UsernamePasswordAuthenticationToken(
                 token.getBody().get( "username" ),
                 token,
-                AuthorityUtils.commaSeparatedStringToAuthorityList( token.getBody().get( "roles", String.class ) )
+                AuthorityUtils.commaSeparatedStringToAuthorityList( stringJoiner.toString() )
         );
     }
 
