@@ -34,6 +34,8 @@ public class User {
     @Column( nullable = false )
     private String password;
 
+    private String forgotPasswordCode;
+
     @Json( groups = {
             @Group
     } )
@@ -65,6 +67,17 @@ public class User {
 
     public void setPassword( final String password ) {
         this.password = password;
+    }
+
+
+    public String getForgotPasswordCode() {
+        return forgotPasswordCode;
+    }
+
+
+    public User setForgotPasswordCode( String forgotPasswordCode ) {
+        this.forgotPasswordCode = forgotPasswordCode;
+        return this;
     }
 
 
