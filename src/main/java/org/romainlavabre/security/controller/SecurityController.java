@@ -62,7 +62,7 @@ public class SecurityController {
 
     @Transactional
     @PostMapping( path = "/auth/token" )
-    public ResponseEntity< Object > authenticate() {
+    public ResponseEntity< Object > authenticate( @CookieValue( name = "DEVICE_ID", required = false ) String deviceId ) {
 
         Authentication authentication = null;
         String         message        = null;
@@ -82,7 +82,7 @@ public class SecurityController {
             }
 
             String accessToken  = this.jwtTokenHandler.createToken( userDetails );
-            String refreshToken = refreshTokenHandler.generateRefreshToken( userRepository.findByUsername( userDetails.getUsername() ) );
+            String refreshToken = refreshTokenHandler.generateRefreshToken( userRepository.findByUsername( userDetails.getUsername() ), deviceId );
 
             HttpHeaders httpHeaders = CookieBuilder.setCookieToLogin( request, accessToken, refreshToken );
 
@@ -107,15 +107,15 @@ public class SecurityController {
 
     @Transactional
     @PostMapping( path = "/auth/refresh" )
-    public ResponseEntity< Object > refresh( @CookieValue( name = "REFRESH_TOKEN", required = false ) String refreshToken ) {
-        User user = refreshTokenHandler.reauth( refreshToken );
+    public ResponseEntity< Object > refresh( @CookieValue( name = "REFRESH_TOKEN", required = false ) String refreshToken, @CookieValue( name = "DEVICE_ID", required = false ) String deviceId ) {
+        User user = refreshTokenHandler.reauth( refreshToken, deviceId );
 
         if ( user == null ) {
             return ResponseEntity.status( HttpStatus.UNAUTHORIZED ).body( Map.of( "message", "INVALID_REFRESH_TOKEN" ) );
         }
 
         String accessToken     = this.jwtTokenHandler.createToken( user );
-        String newRefreshToken = refreshTokenHandler.generateRefreshToken( user );
+        String newRefreshToken = refreshTokenHandler.generateRefreshToken( user, deviceId );
 
         HttpHeaders httpHeaders = CookieBuilder.setCookieToLogin( request, accessToken, newRefreshToken );
 

@@ -12,11 +12,11 @@ import java.util.List;
 @Repository
 public interface RefreshTokenRepository extends JpaRepository< RefreshToken, Long > {
 
-    List< RefreshToken > findAllByUser( User user );
+    List< RefreshToken > findAllByUserAndDeviceId( User user, String deviceId );
 
 
-    RefreshToken findByToken( String refreshTokenStr );
+    RefreshToken findByTokenAndDeviceId( String refreshTokenStr, String deviceId );
 
 
-    RefreshToken findByUserAndRotatedAtIsNull( User user );
+    RefreshToken findByUserAndRotatedAtIsNullAndDeviceId( User user, String deviceId );
 }

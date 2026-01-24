@@ -2,7 +2,6 @@ package org.romainlavabre.security.refreshtoken;
 
 import jakarta.persistence.*;
 import org.romainlavabre.security.User;
-import org.romainlavabre.tokengen.TokenGenerator;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -18,18 +17,15 @@ public class RefreshToken {
     protected long id;
 
     @Column( length = 64, unique = true )
-    protected final String token;
+    protected String token;
 
-    private ZonedDateTime rotatedAt;
+    protected String deviceId;
+
+    protected ZonedDateTime rotatedAt;
 
     @ManyToOne( cascade = { CascadeType.PERSIST } )
     @JoinColumn( nullable = false )
-    private User user;
-
-
-    public RefreshToken() {
-        token = TokenGenerator.generateSecureCode( 64 );
-    }
+    protected User user;
 
 
     public long getId() {
@@ -42,8 +38,25 @@ public class RefreshToken {
     }
 
 
+    public RefreshToken setToken( String token ) {
+        this.token = token;
+        return this;
+    }
+
+
     public ZonedDateTime getRotatedAt() {
         return rotatedAt;
+    }
+
+
+    public String getDeviceId() {
+        return deviceId;
+    }
+
+
+    public RefreshToken setDeviceId( String deviceId ) {
+        this.deviceId = deviceId;
+        return this;
     }
 
 

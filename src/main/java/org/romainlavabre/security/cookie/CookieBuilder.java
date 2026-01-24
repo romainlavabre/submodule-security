@@ -16,6 +16,8 @@ public class CookieBuilder {
 
 
     public static HttpHeaders setCookieToLogin( Request request, String accessToken, String refreshToken ) {
+        String origin = request.getHeader( "origin" );
+
         HttpHeaders headers = new HttpHeaders();
 
         StringJoiner accessTokenCookie = new StringJoiner( "; " );
@@ -24,7 +26,7 @@ public class CookieBuilder {
         accessTokenCookie.add( "Path=" + ACCESS_TOKEN_URI );
         accessTokenCookie.add( "HttpOnly=On" );
         accessTokenCookie.add( "Secure=On" );
-        accessTokenCookie.add( "SameSite=" + ( request.getHeader( "origin" ).contains( LOCAL_DOMAIN ) ? "None" : "Strict" ) );
+        accessTokenCookie.add( "SameSite=" + ( origin != null && origin.contains( LOCAL_DOMAIN ) ? "None" : "Strict" ) );
         accessTokenCookie.add( "Domain=." + SecurityConfigurer.get().getCookieDomain() );
 
         StringJoiner refreshTokenCookie = new StringJoiner( "; " );
@@ -33,7 +35,7 @@ public class CookieBuilder {
         refreshTokenCookie.add( "Path=" + REFRESH_TOKEN_URI );
         refreshTokenCookie.add( "HttpOnly=On" );
         refreshTokenCookie.add( "Secure=On" );
-        refreshTokenCookie.add( "SameSite=" + ( request.getHeader( "origin" ).contains( LOCAL_DOMAIN ) ? "None" : "Strict" ) );
+        refreshTokenCookie.add( "SameSite=" + ( origin != null && origin.contains( LOCAL_DOMAIN ) ? "None" : "Strict" ) );
         refreshTokenCookie.add( "Domain=." + SecurityConfigurer.get().getCookieDomain() );
 
         headers.add( "set-cookie", refreshTokenCookie.toString() );
@@ -44,6 +46,8 @@ public class CookieBuilder {
 
 
     public static HttpHeaders setCookieToLogout( Request request ) {
+        String origin = request.getHeader( "origin" );
+        
         HttpHeaders headers = new HttpHeaders();
 
         StringJoiner accessTokenCookie = new StringJoiner( "; " );
@@ -52,7 +56,7 @@ public class CookieBuilder {
         accessTokenCookie.add( "Path=" + ACCESS_TOKEN_URI );
         accessTokenCookie.add( "HttpOnly=On" );
         accessTokenCookie.add( "Secure=On" );
-        accessTokenCookie.add( "SameSite=" + ( request.getHeader( "origin" ).contains( LOCAL_DOMAIN ) ? "None" : "Strict" ) );
+        accessTokenCookie.add( "SameSite=" + ( origin != null && origin.contains( LOCAL_DOMAIN ) ? "None" : "Strict" ) );
         accessTokenCookie.add( "Domain=." + SecurityConfigurer.get().getCookieDomain() );
 
         StringJoiner refreshTokenCookie = new StringJoiner( "; " );
@@ -61,7 +65,7 @@ public class CookieBuilder {
         refreshTokenCookie.add( "Path=" + REFRESH_TOKEN_URI );
         refreshTokenCookie.add( "HttpOnly=On" );
         refreshTokenCookie.add( "Secure=On" );
-        refreshTokenCookie.add( "SameSite=" + ( request.getHeader( "origin" ).contains( LOCAL_DOMAIN ) ? "None" : "Strict" ) );
+        refreshTokenCookie.add( "SameSite=" + ( origin != null && origin.contains( LOCAL_DOMAIN ) ? "None" : "Strict" ) );
         refreshTokenCookie.add( "Domain=." + SecurityConfigurer.get().getCookieDomain() );
 
         headers.add( "set-cookie", refreshTokenCookie.toString() );

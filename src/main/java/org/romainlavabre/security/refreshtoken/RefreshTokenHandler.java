@@ -7,8 +7,8 @@ import org.romainlavabre.security.User;
  */
 public interface RefreshTokenHandler {
 
-    String generateRefreshToken( User user );
+    String generateRefreshToken( User user, String deviceId );
 
 
-    User reauth( String refreshToken );
+    User reauth( String refreshToken, String deviceId );
 }

@@ -1,6 +1,8 @@
 package org.romainlavabre.security.refreshtoken;
 
+import org.romainlavabre.security.PasswordEncoder;
 import org.romainlavabre.security.User;
+import org.romainlavabre.tokengen.TokenGenerator;
 import org.springframework.stereotype.Service;
 
 import java.time.ZoneOffset;
@@ -15,16 +17,18 @@ public class RefreshTokenHandlerImpl implements RefreshTokenHandler {
     private static final long TOLERANCE_SECONDS = 30;
 
     protected final RefreshTokenRepository refreshTokenRepository;
+    protected final PasswordEncoder        passwordEncoder;
 
 
-    public RefreshTokenHandlerImpl( RefreshTokenRepository refreshTokenRepository ) {
+    public RefreshTokenHandlerImpl( RefreshTokenRepository refreshTokenRepository, PasswordEncoder passwordEncoder ) {
         this.refreshTokenRepository = refreshTokenRepository;
+        this.passwordEncoder        = passwordEncoder;
     }
 
 
     @Override
-    public String generateRefreshToken( User user ) {
-        List< RefreshToken > refreshTokens = refreshTokenRepository.findAllByUser( user );
+    public String generateRefreshToken( User user, String deviceId ) {
+        List< RefreshToken > refreshTokens = refreshTokenRepository.findAllByUserAndDeviceId( user, deviceId );
 
         for ( RefreshToken refreshToken : refreshTokens ) {
             if ( refreshToken.getRotatedAt() != null && refreshToken.getRotatedAt().plusSeconds( TOLERANCE_SECONDS ).isBefore( ZonedDateTime.now( ZoneOffset.UTC ) ) ) {
@@ -32,28 +36,33 @@ public class RefreshTokenHandlerImpl implements RefreshTokenHandler {
             }
         }
 
-        RefreshToken current = refreshTokenRepository.findByUserAndRotatedAtIsNull( user );
+        RefreshToken current = refreshTokenRepository.findByUserAndRotatedAtIsNullAndDeviceId( user, deviceId );
 
-        if ( current == null ) {
-            RefreshToken refreshToken = new RefreshToken();
-            refreshToken.setUser( user );
+        String token = TokenGenerator.generateSecureCode( 64 );
 
-            refreshTokenRepository.save( refreshToken );
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken
+                .setUser( user )
+                .setToken( passwordEncoder.encode( token ) )
+                .setDeviceId( deviceId );
 
-            return refreshToken.getToken();
+        refreshTokenRepository.save( refreshToken );
+
+        if ( current != null ) {
+            current.markAsUsed();
         }
 
-        return current.getToken();
+        return token;
     }
 
 
     @Override
-    public User reauth( String refreshTokenStr ) {
+    public User reauth( String refreshTokenStr, String deviceId ) {
         if ( refreshTokenStr == null ) {
             return null;
         }
 
-        RefreshToken refreshToken = refreshTokenRepository.findByToken( refreshTokenStr );
+        RefreshToken refreshToken = refreshTokenRepository.findByTokenAndDeviceId( passwordEncoder.encode( refreshTokenStr ), deviceId );
 
         if ( refreshToken == null ) {
             return null;
