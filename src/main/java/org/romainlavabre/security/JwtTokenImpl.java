@@ -38,6 +38,12 @@ public class JwtTokenImpl implements JwtTokenHandler {
     public String createToken( final UserDetails userDetails ) {
         final User user = this.userRepository.findByUsername( userDetails.getUsername() );
 
+        return createToken( user );
+    }
+
+
+    @Override
+    public String createToken( final User user ) {
         JwtBuilder jwtBuilder = Jwts.builder()
                 .setExpiration( this.getExpiration() )
                 .setIssuedAt( new Date() )
@@ -47,7 +53,8 @@ public class JwtTokenImpl implements JwtTokenHandler {
             jwtBuilder.claim( claimBuilder.name(), claimBuilder.value( user ) );
         }
 
-        return jwtBuilder.signWith( Keys.hmacShaKeyFor( Base64.getDecoder().decode( SecurityConfigurer.get().getJwtSecret() ) ), SignatureAlgorithm.HS512 )
+        return jwtBuilder
+                .signWith( Keys.hmacShaKeyFor( Base64.getDecoder().decode( SecurityConfigurer.get().getJwtSecret() ) ), SignatureAlgorithm.HS512 )
                 .compact();
     }
 

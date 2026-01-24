@@ -6,7 +6,7 @@
 
     <groupId>org.romainlavabre</groupId>
     <artifactId>security</artifactId>
-    <version>2.1.1</version>
+    <version>3.0.0</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -81,6 +81,12 @@
             <groupId>org.romainlavabre</groupId>
             <artifactId>encoder</artifactId>
             <version>4.0.2</version>
+        </dependency>
+        <!-- SUBMODULE TOKEN -->
+        <dependency>
+            <groupId>org.romainlavabre</groupId>
+            <artifactId>tokengen</artifactId>
+            <version>2.1.0</version>
         </dependency>
 
         <!-- TEST -->

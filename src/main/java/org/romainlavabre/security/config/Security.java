@@ -63,7 +63,8 @@ public class Security {
                         .authorizeHttpRequests()
                         .dispatcherTypeMatchers( DispatcherType.ERROR ).permitAll()
                         .requestMatchers( HttpMethod.OPTIONS ).permitAll()
-                        .requestMatchers( SecurityConfigurer.get().getPublicEndpoint().toArray( publicE ) ).permitAll();
+                        .requestMatchers( SecurityConfigurer.get().getPublicEndpoint().toArray( publicE ) ).permitAll()
+                        .requestMatchers( "/auth/**" ).permitAll();
 
         for ( Map.Entry< String, String > entry : SecurityConfigurer.get().getSecuredEndpoints().entrySet() ) {
             if ( entry.getKey().startsWith( "REG:" ) ) {
@@ -73,7 +74,7 @@ public class Security {
                 a.requestMatchers( entry.getKey() ).hasRole( new SecurityRole( entry.getValue() ).toString() );
             }
         }
-
+        
         a.anyRequest().authenticated();
 
         if ( !SecurityConfigurer.get().getInMemoryUsers().isEmpty() ) {

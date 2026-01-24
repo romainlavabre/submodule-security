@@ -12,6 +12,7 @@ public class SecurityConfigurer {
     private        List< String >        publicEndpoints  = new ArrayList<>();
     private        Map< String, String > securedEndpoints = new HashMap<>();
     private        List< InMemoryUser >  inMemoryUsers    = new ArrayList<>();
+    private        String                cookieDomain;
     private        String                jwtSecret;
     private        int                   jwtLifeTime;
 
@@ -47,7 +48,7 @@ public class SecurityConfigurer {
     }
 
 
-    protected Map< String, String > getSecuredEndpoints() {
+    public Map< String, String > getSecuredEndpoints() {
         return securedEndpoints;
     }
 
@@ -88,9 +89,25 @@ public class SecurityConfigurer {
     }
 
 
+    /**
+     *
+     * @param jwtLifeTime Value in second
+     * @return
+     */
     public SecurityConfigurer setJwtLifeTime( int jwtLifeTime ) {
         this.jwtLifeTime = jwtLifeTime;
 
+        return this;
+    }
+
+
+    public String getCookieDomain() {
+        return cookieDomain;
+    }
+
+
+    public SecurityConfigurer setCookieDomain( String cookieDomain ) {
+        this.cookieDomain = cookieDomain;
         return this;
     }
 

@@ -47,13 +47,13 @@ public class AuthenticationFilter extends GenericFilterBean {
         final HttpServletRequest  request  = ( HttpServletRequest ) servletRequest;
         final HttpServletResponse response = ( HttpServletResponse ) servletResponse;
 
-        final Optional< String > token = Optional.ofNullable( request.getHeader( HttpHeaders.AUTHORIZATION ) );
+        final Optional< String > token = Optional.ofNullable( BearerTokenExtractor.extract( request.getHeader( HttpHeaders.AUTHORIZATION ), request.getCookies() ) );
 
         final Authentication authentication;
 
-        if ( token.isPresent() && token.get().startsWith( AuthenticationFilter.BEARER ) ) {
+        if ( token.isPresent() && BearerTokenExtractor.isJwtRequired( request ) ) {
 
-            final String bearerToken = token.get().substring( AuthenticationFilter.BEARER.length() + 1 );
+            final String bearerToken = token.get();
 
             try {
                 final Jws< Claims > claims = this.jwtTokenHandler.validateJwtToken( bearerToken );

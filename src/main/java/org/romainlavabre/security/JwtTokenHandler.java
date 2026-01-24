@@ -12,5 +12,9 @@ public interface JwtTokenHandler {
 
     String createToken( UserDetails user );
 
+
+    String createToken( User user );
+
+
     Jws< Claims > validateJwtToken( String token );
 }
