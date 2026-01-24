@@ -1,3 +1,4 @@
+3.0.3: Fix Hash refresh token
 3.0.2: Fix Hash refresh token & support multi device
 3.0.0: Cookie support
 2.1.1: Fix User.forgotPasswordCode

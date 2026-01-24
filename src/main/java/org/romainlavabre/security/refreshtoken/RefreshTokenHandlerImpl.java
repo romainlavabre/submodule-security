@@ -1,12 +1,15 @@
 package org.romainlavabre.security.refreshtoken;
 
-import org.romainlavabre.security.PasswordEncoder;
 import org.romainlavabre.security.User;
 import org.romainlavabre.tokengen.TokenGenerator;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -17,12 +20,10 @@ public class RefreshTokenHandlerImpl implements RefreshTokenHandler {
     private static final long TOLERANCE_SECONDS = 30;
 
     protected final RefreshTokenRepository refreshTokenRepository;
-    protected final PasswordEncoder        passwordEncoder;
 
 
-    public RefreshTokenHandlerImpl( RefreshTokenRepository refreshTokenRepository, PasswordEncoder passwordEncoder ) {
+    public RefreshTokenHandlerImpl( RefreshTokenRepository refreshTokenRepository ) {
         this.refreshTokenRepository = refreshTokenRepository;
-        this.passwordEncoder        = passwordEncoder;
     }
 
 
@@ -43,7 +44,7 @@ public class RefreshTokenHandlerImpl implements RefreshTokenHandler {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken
                 .setUser( user )
-                .setToken( passwordEncoder.encode( token ) )
+                .setToken( hash( token ) )
                 .setDeviceId( deviceId );
 
         refreshTokenRepository.save( refreshToken );
@@ -62,8 +63,9 @@ public class RefreshTokenHandlerImpl implements RefreshTokenHandler {
             return null;
         }
 
-        RefreshToken refreshToken = refreshTokenRepository.findByTokenAndDeviceId( passwordEncoder.encode( refreshTokenStr ), deviceId );
+        RefreshToken refreshToken = refreshTokenRepository.findByTokenAndDeviceId( hash( refreshTokenStr ), deviceId );
 
+        System.out.println( "refreshToken: " + refreshToken );
         if ( refreshToken == null ) {
             return null;
         }
@@ -75,5 +77,16 @@ public class RefreshTokenHandlerImpl implements RefreshTokenHandler {
         refreshToken.markAsUsed();
 
         return refreshToken.getUser();
+    }
+
+
+    protected String hash( String token ) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance( "SHA-256" );
+            byte[]        hash   = digest.digest( token.getBytes( StandardCharsets.UTF_8 ) );
+            return HexFormat.of().formatHex( hash );
+        } catch ( NoSuchAlgorithmException e ) {
+            throw new IllegalStateException( "SHA-256 not available", e );
+        }
     }
 }

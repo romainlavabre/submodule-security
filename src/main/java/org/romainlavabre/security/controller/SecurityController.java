@@ -110,6 +110,9 @@ public class SecurityController {
     public ResponseEntity< Object > refresh( @CookieValue( name = "REFRESH_TOKEN", required = false ) String refreshToken, @CookieValue( name = "DEVICE_ID", required = false ) String deviceId ) {
         User user = refreshTokenHandler.reauth( refreshToken, deviceId );
 
+        System.out.println( user );
+        System.out.println( deviceId );
+        System.out.println( refreshToken );
         if ( user == null ) {
             return ResponseEntity.status( HttpStatus.UNAUTHORIZED ).body( Map.of( "message", "INVALID_REFRESH_TOKEN" ) );
         }
