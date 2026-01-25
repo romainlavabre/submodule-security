@@ -65,7 +65,6 @@ public class RefreshTokenHandlerImpl implements RefreshTokenHandler {
 
         RefreshToken refreshToken = refreshTokenRepository.findByTokenAndDeviceId( hash( refreshTokenStr ), deviceId );
 
-        System.out.println( "refreshToken: " + refreshToken );
         if ( refreshToken == null ) {
             return null;
         }
