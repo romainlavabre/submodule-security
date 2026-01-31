@@ -34,7 +34,7 @@ public class User {
     @Column( nullable = false )
     private String password;
 
-    @Column(unique = true)
+    @Column( unique = true )
     private String forgotPasswordCode;
 
     @Json( groups = {
@@ -42,7 +42,11 @@ public class User {
     } )
     @ElementCollection
     private final Set< String > roles;
-    private       boolean       enable;
+
+    @Json( groups = {
+            @Group
+    } )
+    private boolean enable;
 
 
     public User() {
