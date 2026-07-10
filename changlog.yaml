@@ -1,3 +1,17 @@
+4.0.0: |
+  Migration to AWS Cognito, as resource server and backend for frontend.
+  BREAKING:
+    - User, UserRepository, PasswordEncoder, JwtTokenHandler and the refresh token persistence are removed,
+      the host application now owns its user entity.
+    - Security.getId() returns the custom attribute external_id, -1 when absent, use getAuthenticationId()
+      to read the Cognito sub.
+    - Security.getRoles() returns a Collection instead of a Set. Roles come from the cognito:groups claim,
+      prefixed by ROLE_ when needed.
+    - POST /auth/token takes auth_code, auth_client_id and auth_redirect_uri instead of auth_username and
+      auth_password. It answers {"exp": ...}, tokens are set as HttpOnly cookies.
+    - Everything is configured through SecurityConfigurer, the module reads no environment variable anymore.
+      setJwtSecret() and setJwtLifeTime() are removed, addIssuer(), addClient(), setCognitoUrl(),
+      addAllowedClientId(), addSameSiteNoneDomain() and setSessionCookiePath() are added.
 3.0.4: Add annotation in user
 3.0.3: Fix Hash refresh token
 3.0.2: Fix Hash refresh token & support multi device
