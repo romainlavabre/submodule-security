@@ -11,7 +11,7 @@
     </parent>
     <groupId>org.romainlavabre</groupId>
     <artifactId>security</artifactId>
-    <version>4.0.0</version>
+    <version>4.0.1</version>
 
     <properties>
         <java.version>21</java.version>

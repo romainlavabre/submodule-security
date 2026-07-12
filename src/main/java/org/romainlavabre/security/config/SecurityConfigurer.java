@@ -22,7 +22,7 @@ public class SecurityConfigurer {
 
     private String cookieDomain;
     private String cognitoUrl;
-    private String sessionCookiePath = DEFAULT_SESSION_COOKIE_PATH;
+    private String reverseProxyPrefix = "";
     private String userPoolId;
     private String awsRegion;
     private String awsAccessKey;
@@ -188,15 +188,61 @@ public class SecurityConfigurer {
     }
 
 
-    public String getSessionCookiePath() {
-        return sessionCookiePath;
+    public String getReverseProxyPrefix() {
+        return reverseProxyPrefix;
     }
 
 
-    public SecurityConfigurer setSessionCookiePath( String sessionCookiePath ) {
-        this.sessionCookiePath = sessionCookiePath;
+    /**
+     * Prefix added by a reverse proxy in front of the backend, eg /api when the app is served under
+     * https://host/api. The proxy strips it before forwarding, so the endpoints stay unprefixed
+     * internally, but the browser addresses them under the prefix. Cookie paths must therefore carry
+     * it to be replayed. Leave it null or blank when there is no proxy prefix.
+     */
+    public SecurityConfigurer setReverseProxyPrefix( String reverseProxyPrefix ) {
+        this.reverseProxyPrefix = normalizePrefix( reverseProxyPrefix );
 
         return this;
+    }
+
+
+    /**
+     * Path scoping a cookie to the whole application, eg / without a proxy prefix, /api with one.
+     */
+    public String getRootCookiePath() {
+        return reverseProxyPrefix.isBlank() ? "/" : reverseProxyPrefix;
+    }
+
+
+    /**
+     * Path scoping a cookie to the session endpoints (/auth/refresh and /auth/revoke), eg /auth
+     * without a proxy prefix, /api/auth with one.
+     */
+    public String getSessionCookiePath() {
+        return reverseProxyPrefix + DEFAULT_SESSION_COOKIE_PATH;
+    }
+
+
+    /**
+     * Ensures a leading slash and drops any trailing one, so "api", "/api" and "/api/" all yield
+     * "/api", while null or blank yields "" (no prefix).
+     */
+    private static String normalizePrefix( String prefix ) {
+        if ( prefix == null || prefix.isBlank() ) {
+            return "";
+        }
+
+        String normalized = prefix.trim();
+
+        if ( !normalized.startsWith( "/" ) ) {
+            normalized = "/" + normalized;
+        }
+
+        while ( normalized.endsWith( "/" ) ) {
+            normalized = normalized.substring( 0, normalized.length() - 1 );
+        }
+
+        return normalized;
     }
 
 

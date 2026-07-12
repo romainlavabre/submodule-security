@@ -47,6 +47,46 @@ public class CookieBuilderTest {
 
 
     @Test
+    public void a_reverse_proxy_prefix_is_prepended_to_every_cookie_path() {
+        SecurityConfigurer
+                .init()
+                .setCookieDomain( "fairfair.dev" )
+                .setReverseProxyPrefix( "/api" )
+                .build();
+
+        Assert.assertTrue( cookieBuilder.accessToken( "a.b.c" ).contains( "Path=/api;" ) );
+        Assert.assertTrue( cookieBuilder.refreshToken( "token" ).contains( "Path=/api/auth;" ) );
+        Assert.assertTrue( cookieBuilder.clientId( "client" ).contains( "Path=/api/auth;" ) );
+    }
+
+
+    @Test
+    public void a_reverse_proxy_prefix_is_normalized() {
+        SecurityConfigurer
+                .init()
+                .setCookieDomain( "fairfair.dev" )
+                .setReverseProxyPrefix( "api/" )
+                .build();
+
+        Assert.assertTrue( cookieBuilder.accessToken( "a.b.c" ).contains( "Path=/api;" ) );
+        Assert.assertTrue( cookieBuilder.refreshToken( "token" ).contains( "Path=/api/auth;" ) );
+    }
+
+
+    @Test
+    public void a_blank_reverse_proxy_prefix_keeps_the_default_paths() {
+        SecurityConfigurer
+                .init()
+                .setCookieDomain( "fairfair.dev" )
+                .setReverseProxyPrefix( "  " )
+                .build();
+
+        Assert.assertTrue( cookieBuilder.accessToken( "a.b.c" ).contains( "Path=/;" ) );
+        Assert.assertTrue( cookieBuilder.refreshToken( "token" ).contains( "Path=/auth;" ) );
+    }
+
+
+    @Test
     public void a_null_value_expires_the_cookie() {
         String cookie = cookieBuilder.accessToken( null );
 

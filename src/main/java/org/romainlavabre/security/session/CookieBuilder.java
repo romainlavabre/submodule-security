@@ -14,13 +14,12 @@ public class CookieBuilder {
     public static final String REFRESH_TOKEN_COOKIE_NAME = "REFRESH_TOKEN";
     public static final String CLIENT_ID_COOKIE_NAME     = "CLIENT_ID";
 
-    private static final String ACCESS_TOKEN_PATH = "/";
-    private static final int    ONE_YEAR          = 60 * 60 * 24 * 365;
-    private static final int    EXPIRED           = -1;
+    private static final int ONE_YEAR = 60 * 60 * 24 * 365;
+    private static final int EXPIRED  = -1;
 
 
     public String accessToken( String accessToken ) {
-        return build( BearerTokenExtractor.ACCESS_TOKEN_COOKIE_NAME, accessToken, ACCESS_TOKEN_PATH );
+        return build( BearerTokenExtractor.ACCESS_TOKEN_COOKIE_NAME, accessToken, SecurityConfigurer.get().getRootCookiePath() );
     }
 
 
