@@ -1,6 +1,8 @@
 package org.romainlavabre.security;
 
 import org.romainlavabre.request.Request;
+import org.romainlavabre.security.principal.Principal;
+import org.romainlavabre.security.principal.PrincipalResolver;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -18,14 +20,27 @@ import java.util.Map;
 @Service
 @RequestScope
 public class SecurityImpl implements Security {
+    protected static final String CLAIM_SUB       = "sub";
+    protected static final String CLAIM_AZP       = "azp";
+    protected static final String CLAIM_CLIENT_ID = "client_id";
 
     protected Map< String, Object > body;
-    protected Collection< String >  roles;
+    protected Principal             principal;
 
 
-    public SecurityImpl( Request request, JwtDecoder jwtDecoder ) {
-        this.body  = null;
-        this.roles = List.of();
+    public SecurityImpl( Request request, PrincipalResolver principalResolver, JwtDecoder jwtDecoder ) {
+        this.body      = null;
+        this.principal = null;
+
+        /*
+         * Same predicate as the BearerTokenResolver, so that this never claims to know a caller
+         * Spring Security did not authenticate: on a public endpoint it resolves no token, hence no
+         * identity here either. Both fields must stay null together, everything below hasConnected()
+         * reads one of them.
+         */
+        if ( !BearerTokenExtractor.isJwtRequired( request.getUri() ) ) {
+            return;
+        }
 
         final String token = BearerTokenExtractor.extract( request.getHeader( HttpHeaders.AUTHORIZATION ), request.getCookies() );
 
@@ -35,14 +50,18 @@ public class SecurityImpl implements Security {
 
         final Jwt jwt;
 
+        /*
+         * A token the decoder rejects is not an identity, and must not fail the request either.
+         * Denying access where an identity is required is the filter chain's job.
+         */
         try {
             jwt = jwtDecoder.decode( token );
         } catch ( final JwtException exception ) {
             return;
         }
 
-        this.body  = jwt.getClaims();
-        this.roles = RoleNormalizer.normalize( jwt.getClaimAsStringList( CognitoClaim.GROUPS ) );
+        this.body      = jwt.getClaims();
+        this.principal = principalResolver.resolve( this.body );
     }
 
 
@@ -58,27 +77,29 @@ public class SecurityImpl implements Security {
 
     @Override
     public String getAuthenticationId() {
-        return this.body.get( CognitoClaim.SUBJECT ).toString();
+        return this.body.get( CLAIM_SUB ).toString();
     }
 
 
+    /**
+     * Everything reading the principal answers as an unidentified caller rather than throwing, so
+     * that a caller forgetting to guard with {@link #hasConnected()} denies instead of returning a 500.
+     */
     @Override
     public String getUsername() {
-        final Object username = this.body.get( CognitoClaim.USERNAME );
-
-        return username != null ? username.toString() : null;
+        return this.principal != null ? this.principal.getUsername() : null;
     }
 
 
     @Override
     public Collection< String > getRoles() {
-        return this.roles;
+        return this.principal != null ? this.principal.getRoles() : List.of();
     }
 
 
     @Override
     public boolean hasRole( final String role ) {
-        return this.roles.contains( RoleNormalizer.normalize( role ) );
+        return getRoles().contains( role );
     }
 
 
@@ -97,43 +118,38 @@ public class SecurityImpl implements Security {
 
     @Override
     public boolean hasUser() {
-        return getUsername() != null;
+        return this.principal != null && this.principal.isUser();
     }
 
 
     @Override
     public boolean hasClient() {
-        return getUsername() == null;
+        return this.principal != null && this.principal.isClient();
     }
 
 
+    /**
+     * Reads {@code scp} as well as {@code scope}: Hydra emits the first as an array.
+     */
     @Override
     public String[] getScopes() {
-        final Object scope = this.body.get( CognitoClaim.SCOPE );
-
-        if ( scope == null ) {
-            return new String[ 0 ];
-        }
-
-        return scope.toString().split( " " );
+        return TokenClaims.scopes( this.body ).toArray( new String[ 0 ] );
     }
 
 
     @Override
     public boolean hasScope( final String scope ) {
-        for ( final String localScope : getScopes() ) {
-            if ( localScope.equalsIgnoreCase( scope ) ) {
-                return true;
-            }
-        }
-
-        return false;
+        return TokenClaims.hasScope( this.body, scope );
     }
 
 
     @Override
     public String getClientId() {
-        final Object clientId = this.body.get( CognitoClaim.CLIENT_ID );
+        if ( this.body == null ) {
+            return null;
+        }
+
+        final Object clientId = this.body.get( CLAIM_AZP ) != null ? this.body.get( CLAIM_AZP ) : this.body.get( CLAIM_CLIENT_ID );
 
         return clientId != null ? clientId.toString() : null;
     }
@@ -141,27 +157,16 @@ public class SecurityImpl implements Security {
 
     @Override
     public boolean hasAttribute( final String attribute ) {
-        return getAttribute( attribute ) != null;
+        return this.principal != null && this.principal.getAttributes().get( attribute ) != null;
     }
 
 
     /**
-     * Reads an attribute either from the "attributes" claim, injected by a pre token generation lambda,
-     * or from the native Cognito custom attributes.
+     * Attributes come from the PrincipalProvider of the application, never from the token.
      */
     @Override
     public Object getAttribute( final String attribute ) {
-        if ( this.body == null ) {
-            return null;
-        }
-
-        final Object attributes = this.body.get( CognitoClaim.ATTRIBUTES );
-
-        if ( attributes instanceof Map< ?, ? > map && map.get( attribute ) != null ) {
-            return map.get( attribute );
-        }
-
-        return this.body.get( CognitoClaim.CUSTOM_ATTRIBUTE_PREFIX + attribute );
+        return this.principal != null ? this.principal.getAttributes().get( attribute ) : null;
     }
 
 

@@ -8,7 +8,7 @@ import java.util.Collection;
 public interface Security {
 
     /**
-     * @return Value of the custom attribute external_id, -1 if not provided by the token
+     * @return Value of the principal attribute external_id, -1 if not provided by the PrincipalProvider
      */
     long getId();
 

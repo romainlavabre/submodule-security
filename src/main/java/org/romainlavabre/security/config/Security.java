@@ -1,10 +1,13 @@
 package org.romainlavabre.security.config;
 
+import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import org.romainlavabre.security.BearerTokenExtractor;
-import org.romainlavabre.security.CognitoClaim;
-import org.romainlavabre.security.RoleNormalizer;
+import org.romainlavabre.security.TokenClaims;
+import org.romainlavabre.security.principal.PrincipalResolver;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -19,6 +22,7 @@ import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
@@ -28,6 +32,7 @@ import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.text.ParseException;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +47,13 @@ public class Security {
     private static final String SESSION_ENDPOINTS  = "/auth/**";
     private static final String INVALID_TOKEN_CODE = "invalid_token";
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    protected final PrincipalResolver principalResolver;
+    private final   ObjectMapper      objectMapper = new ObjectMapper();
+
+
+    public Security( PrincipalResolver principalResolver ) {
+        this.principalResolver = principalResolver;
+    }
 
 
     @Bean
@@ -97,14 +108,16 @@ public class Security {
 
     /**
      * Each issuer owns its decoder, the right one is picked from the iss claim of the incoming token.
-     * When no jwks uri is provided, the issuer well-known configuration is fetched at startup.
+     * An issuer registered with addIssuer() fetches its keys over HTTP (Hydra), one registered with
+     * addIssuerWithJwks() is checked against the keys it was given (Kratos tokenizer).
      */
     @Bean
     public JwtDecoder jwtDecoder() {
-        Map< String, String > issuers = SecurityConfigurer.get().getIssuers();
+        Map< String, String > issuers         = SecurityConfigurer.get().getIssuers();
+        Map< String, String > issuersWithJwks = SecurityConfigurer.get().getIssuersWithJwks();
 
-        if ( issuers.isEmpty() ) {
-            throw new IllegalStateException( "At least one issuer is required, use SecurityConfigurer.addIssuer()" );
+        if ( issuers.isEmpty() && issuersWithJwks.isEmpty() ) {
+            throw new IllegalStateException( "At least one issuer is required, use SecurityConfigurer.addIssuer() or addIssuerWithJwks()" );
         }
 
         Map< String, JwtDecoder > decoders = new HashMap<>();
@@ -122,13 +135,21 @@ public class Security {
             decoders.put( issuer, decoder );
         }
 
+        for ( Map.Entry< String, String > entry : issuersWithJwks.entrySet() ) {
+            NimbusJwtDecoder decoder = staticJwksDecoder( entry.getKey(), entry.getValue() );
+
+            decoder.setJwtValidator( getJwtValidator( entry.getKey() ) );
+
+            decoders.put( entry.getKey(), decoder );
+        }
+
         return token -> {
             String issuer = extractIssuer( token );
 
             JwtDecoder decoder = decoders.get( issuer );
 
             if ( decoder == null ) {
-                throw new JwtException( "Unknown issuer: " + issuer );
+                throw new BadJwtException( "Unknown issuer: " + issuer );
             }
 
             return decoder.decode( token );
@@ -136,12 +157,16 @@ public class Security {
     }
 
 
+    /**
+     * Roles come from the application, through the PrincipalResolver: the identity provider carries none.
+     */
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
 
         jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter( jwt ->
-                RoleNormalizer.normalize( jwt.getClaimAsStringList( CognitoClaim.GROUPS ) )
+                principalResolver.resolve( jwt )
+                        .getRoles()
                         .stream()
                         .map( role -> ( GrantedAuthority ) new SimpleGrantedAuthority( role ) )
                         .toList()
@@ -168,31 +193,60 @@ public class Security {
     protected OAuth2TokenValidator< Jwt > getJwtValidator( String issuer ) {
         return new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer( issuer ),
-                getAccessTokenValidator(),
-                getClientIdValidator()
+                getAudienceValidator()
         );
     }
 
 
     /**
-     * An id token carries the same groups than an access token, but it is not an authorization token.
+     * A token minted for another audience must not open this one, even when signed by a trusted issuer.
+     * Without a configured audience every token passes, which only suits an application with a single
+     * audience per issuer.
      */
-    protected OAuth2TokenValidator< Jwt > getAccessTokenValidator() {
-        return jwt -> CognitoClaim.ACCESS_TOKEN_USE.equals( jwt.getClaimAsString( CognitoClaim.TOKEN_USE ) )
-                ? OAuth2TokenValidatorResult.success()
-                : OAuth2TokenValidatorResult.failure( new OAuth2Error( INVALID_TOKEN_CODE, "Only an access token is accepted", null ) );
+    protected OAuth2TokenValidator< Jwt > getAudienceValidator() {
+        return jwt -> {
+            String audience = SecurityConfigurer.get().getAudience();
+
+            if ( audience == null || audience.isBlank() || TokenClaims.audiences( jwt.getClaims() ).contains( audience ) ) {
+                return OAuth2TokenValidatorResult.success();
+            }
+
+            return OAuth2TokenValidatorResult.failure( new OAuth2Error( INVALID_TOKEN_CODE, "The token is not issued for this audience", null ) );
+        };
     }
 
 
     /**
-     * A Cognito access token carries no aud claim, client_id stands for it.
+     * The accepted algorithms are those the keys declare, RS256 when none does.
      */
-    protected OAuth2TokenValidator< Jwt > getClientIdValidator() {
-        List< String > allowedClientIds = SecurityConfigurer.get().getAllowedClientIds();
+    protected NimbusJwtDecoder staticJwksDecoder( String issuer, String jwksJson ) {
+        JWKSet jwkSet;
 
-        return jwt -> allowedClientIds.isEmpty() || allowedClientIds.contains( jwt.getClaimAsString( CognitoClaim.CLIENT_ID ) )
-                ? OAuth2TokenValidatorResult.success()
-                : OAuth2TokenValidatorResult.failure( new OAuth2Error( INVALID_TOKEN_CODE, "Unknown client id", null ) );
+        try {
+            jwkSet = JWKSet.parse( jwksJson );
+        } catch ( ParseException | RuntimeException e ) {
+            throw new IllegalStateException( "Invalid json web key set for issuer " + issuer, e );
+        }
+
+        if ( jwkSet.getKeys().isEmpty() ) {
+            throw new IllegalStateException( "The json web key set of issuer " + issuer + " holds no key" );
+        }
+
+        for ( JWK jwk : jwkSet.getKeys() ) {
+            if ( jwk.isPrivate() ) {
+                throw new IllegalStateException( "The json web key set of issuer " + issuer + " holds a private key, only the public one is expected" );
+            }
+        }
+
+        NimbusJwtDecoder.JwkSourceJwtDecoderBuilder builder = NimbusJwtDecoder.withJwkSource( new ImmutableJWKSet<>( jwkSet ) );
+
+        for ( JWK jwk : jwkSet.getKeys() ) {
+            if ( jwk.getAlgorithm() != null ) {
+                builder.jwsAlgorithm( SignatureAlgorithm.from( jwk.getAlgorithm().getName() ) );
+            }
+        }
+
+        return builder.build();
     }
 
 
@@ -210,6 +264,10 @@ public class Security {
     }
 
 
+    /**
+     * BadJwtException, not JwtException: JwtAuthenticationProvider turns the first into a 401 and the
+     * second into a 500. A caller sending a malformed bearer is unauthenticated, not a server fault.
+     */
     private String extractIssuer( String token ) {
         try {
             String[] parts = token.split( "\\." );
@@ -218,7 +276,7 @@ public class Security {
 
             return payload.get( "iss" ).asString();
         } catch ( Exception e ) {
-            throw new JwtException( "Invalid JWT", e );
+            throw new BadJwtException( "Invalid JWT", e );
         }
     }
 

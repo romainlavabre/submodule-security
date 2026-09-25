@@ -3,17 +3,12 @@ package org.romainlavabre.security.identity;
 import org.romainlavabre.exception.HttpBadRequestException;
 import org.romainlavabre.exception.HttpConflictException;
 import org.romainlavabre.exception.HttpInternalServerErrorException;
-import org.romainlavabre.security.CognitoAttribute;
+import org.romainlavabre.rest.Response;
+import org.romainlavabre.rest.Rest;
+import org.romainlavabre.security.config.SecurityConfigurer;
 import org.romainlavabre.security.message.Error;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminCreateUserRequest;
-import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminCreateUserResponse;
-import software.amazon.awssdk.services.cognitoidentityprovider.model.AttributeType;
-import software.amazon.awssdk.services.cognitoidentityprovider.model.CognitoIdentityProviderException;
-import software.amazon.awssdk.services.cognitoidentityprovider.model.MessageActionType;
-import software.amazon.awssdk.services.cognitoidentityprovider.model.UsernameExistsException;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -22,97 +17,43 @@ import java.util.Map;
  */
 @Service
 public class CreateIdentityImpl implements CreateIdentity {
+    protected static final int CONFLICT = 409;
 
-    protected final CognitoAdminClient  cognitoAdminClient;
-    protected final AddIdentityToGroup addIdentityToGroup;
-
-
-    public CreateIdentityImpl( CognitoAdminClient cognitoAdminClient, AddIdentityToGroup addIdentityToGroup ) {
-        this.cognitoAdminClient = cognitoAdminClient;
-        this.addIdentityToGroup = addIdentityToGroup;
-    }
+    protected static final String SCHEMA_ID = "default";
 
 
     @Override
-    public String create( String username ) {
-        return create( username, List.of() );
-    }
-
-
-    @Override
-    public String create( String username, List< String > groups ) {
-        return create(
-                username,
-                Map.of(
-                        CognitoAttribute.EMAIL, username == null ? "" : username.trim(),
-                        CognitoAttribute.EMAIL_VERIFIED, "true"
-                ),
-                groups
-        );
-    }
-
-
-    @Override
-    public String create( String username, Map< String, String > attributes ) {
-        return create( username, attributes, List.of() );
-    }
-
-
-    @Override
-    public String create( String username, Map< String, String > attributes, List< String > groups ) {
-        if ( username == null || username.isBlank() ) {
+    public String create( String email ) {
+        if ( email == null || email.isBlank() ) {
             throw new HttpBadRequestException( Error.IDP_USERNAME_REQUIRED, false );
         }
 
-        AdminCreateUserResponse response;
+        String address = email.trim();
 
-        try {
-            response = cognitoAdminClient.get().adminCreateUser( buildRequest( username.trim(), attributes ) );
-        } catch ( UsernameExistsException e ) {
+        Response response =
+                Rest.builder()
+                        .post( KratosAdmin.url() + "/admin/identities" )
+                        .jsonBody( Map.of(
+                                "schema_id", SCHEMA_ID,
+                                "traits", Map.of( "email", address ),
+                                // The address is the one the application registered: no verification mail
+                                "verifiable_addresses", List.of( Map.of(
+                                        "value", address,
+                                        "via", "email",
+                                        "verified", true,
+                                        "status", "completed"
+                                ) )
+                        ) )
+                        .buildAndSend();
+
+        if ( response.status() == CONFLICT ) {
             throw new HttpConflictException( Error.IDP_IDENTITY_ALREADY_EXISTS, false );
-        } catch ( CognitoIdentityProviderException e ) {
+        }
+
+        if ( !response.isSuccess() || response.getBodyAsMap().get( "id" ) == null ) {
             throw new HttpInternalServerErrorException( Error.IDP_IDENTITY_CREATION_FAILED, false );
         }
 
-        for ( String group : groups ) {
-            addIdentityToGroup.add( username.trim(), group );
-        }
-
-        return extractSub( response );
-    }
-
-
-    protected AdminCreateUserRequest buildRequest( String username, Map< String, String > attributes ) {
-        List< AttributeType > userAttributes = new ArrayList<>();
-
-        for ( Map.Entry< String, String > attribute : attributes.entrySet() ) {
-            userAttributes.add(
-                    AttributeType.builder()
-                            .name( attribute.getKey() )
-                            .value( attribute.getValue() )
-                            .build()
-            );
-        }
-
-        return AdminCreateUserRequest.builder()
-                .userPoolId( cognitoAdminClient.getUserPoolId() )
-                .username( username )
-                .userAttributes( userAttributes )
-                .messageAction( MessageActionType.SUPPRESS )
-                .build();
-    }
-
-
-    /**
-     * The sub is generated by Cognito, it is already carried by the created user, no need to read the identity back.
-     */
-    protected String extractSub( AdminCreateUserResponse response ) {
-        return response.user()
-                .attributes()
-                .stream()
-                .filter( attribute -> CognitoAttribute.SUB.equals( attribute.name() ) )
-                .findFirst()
-                .map( AttributeType::value )
-                .orElseThrow( () -> new HttpInternalServerErrorException( Error.IDP_IDENTITY_CREATION_FAILED, false ) );
+        return response.getBodyAsMap().get( "id" ).toString();
     }
 }

@@ -2,7 +2,7 @@ package org.romainlavabre.security.controller;
 
 import org.romainlavabre.request.Request;
 import org.romainlavabre.security.Security;
-import org.romainlavabre.security.session.ExchangeCode;
+import org.romainlavabre.security.session.Login;
 import org.romainlavabre.security.session.Logout;
 import org.romainlavabre.security.session.Refresh;
 import org.springframework.http.HttpHeaders;
@@ -21,30 +21,44 @@ import java.util.Map;
 @RestController( "SecurityController" )
 public class SecurityController {
 
-    protected final ExchangeCode exchangeCode;
-    protected final Refresh      refresh;
-    protected final Logout       logout;
-    protected final Security     security;
-    protected final Request      request;
+    protected final Login    login;
+    protected final Refresh  refresh;
+    protected final Logout   logout;
+    protected final Security security;
+    protected final Request  request;
 
 
     public SecurityController(
-            ExchangeCode exchangeCode,
+            Login login,
             Refresh refresh,
             Logout logout,
             Security security,
             Request request ) {
-        this.exchangeCode = exchangeCode;
-        this.refresh      = refresh;
-        this.logout       = logout;
-        this.security     = security;
-        this.request      = request;
+        this.login    = login;
+        this.refresh  = refresh;
+        this.logout   = logout;
+        this.security = security;
+        this.request  = request;
     }
 
 
-    @PostMapping( path = "/auth/token" )
-    public ResponseEntity< Map< String, Object > > authenticate() {
-        ExchangeCode.ExchangeResult result = exchangeCode.exchange( request );
+    /**
+     * Same answer whether the identifier exists or not, throttled or not.
+     */
+    @PostMapping( path = "/auth/login" )
+    public ResponseEntity< Void > login() {
+        Login.InitResult result = login.init( request );
+
+        return ResponseEntity
+                .noContent()
+                .headers( toHeaders( result.getCookies() ) )
+                .build();
+    }
+
+
+    @PostMapping( path = "/auth/login/verify" )
+    public ResponseEntity< Map< String, Object > > verify() {
+        Login.VerifyResult result = login.verify( request );
 
         return ResponseEntity
                 .ok()
@@ -64,8 +78,8 @@ public class SecurityController {
     }
 
 
-    @PostMapping( path = "/auth/revoke" )
-    public ResponseEntity< Void > revoke() {
+    @PostMapping( path = "/auth/logout" )
+    public ResponseEntity< Void > logout() {
         List< String > cookies = logout.logout( request );
 
         return ResponseEntity
@@ -75,6 +89,9 @@ public class SecurityController {
     }
 
 
+    /**
+     * Fed by the Principal the application resolved, not by the token.
+     */
     @GetMapping( path = "/userinfo" )
     public ResponseEntity< Map< String, Object > > userInfo() {
         Map< String, Object > body = new HashMap<>();

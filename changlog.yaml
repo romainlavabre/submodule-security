@@ -1,3 +1,25 @@
+5.0.0: |
+    Migration to Ory: Kratos for the users (email code, backend for frontend, JWT minted by the tokenizer),
+    Hydra for the machine to machine clients (client_credentials). AWS Cognito is removed entirely.
+    BREAKING:
+      - The host application must declare a PrincipalProvider bean: roles and attributes are resolved from
+        its own tables (findIdentity( sub ), findClient( clientId )), no identity provider carries them anymore.
+        Resolutions are cached (setPrincipalCacheMaxSize(), setPrincipalCacheTtlSeconds()).
+      - Security.hasUser() and hasClient() follow the type of the Principal, getClientId() reads azp then
+        client_id, getScopes() reads scp then scope, getAttribute() reads the Principal attributes.
+        hasRole() compares the exact role name, ROLE_ prefix included.
+      - Security only builds an identity on an endpoint requiring a token, as the filter chain does.
+      - SecurityConfigurer: setCognitoUrl(), addClient(), addAllowedClientId(), setUserPoolId(), setAwsRegion()
+        and setAwsCredentials() are removed. addIssuerWithJwks(), setAudience(), setKratosPublicUrl(),
+        setKratosAdminUrl(), setKratosTokenizeAs() and setHydraAdminUrl() are added.
+      - A token whose aud does not contain the configured audience is rejected. An unknown issuer or a malformed
+        token answers 401 instead of 500.
+      - POST /auth/token is removed. POST /auth/login and POST /auth/login/verify drive the Kratos email code
+        login, POST /auth/revoke is renamed POST /auth/logout. The CLIENT_ID cookie is removed, KRATOS_FLOW is
+        added.
+      - CreateIdentity only takes the email, groups and attributes are removed along with AddIdentityToGroup.
+        CreateIdentity and FetchIdentity return the Kratos identity id.
+      - HydraClients is added (create, rotateSecret, delete).
 4.0.1: Add support for reverse proxy prefix (cookies)
 4.0.0: |
     Migration to AWS Cognito, as resource server and backend for frontend.

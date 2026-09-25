@@ -6,27 +6,32 @@ import java.util.*;
 
 public class SecurityConfigurer {
     /**
-     * Covers both /auth/refresh and /auth/revoke, which need to replay the refresh token.
+     * Covers /auth/login/verify, /auth/refresh and /auth/logout, which need to replay the flow or the
+     * session token.
      */
     private static final String DEFAULT_SESSION_COOKIE_PATH = "/auth";
+
+    private static final long DEFAULT_PRINCIPAL_CACHE_MAX_SIZE    = 20_000;
+    private static final long DEFAULT_PRINCIPAL_CACHE_TTL_SECONDS = 300;
 
     private static SecurityConfigurer INSTANCE;
 
     private final List< String >        publicEndpoints     = new ArrayList<>();
     private final Map< String, String > securedEndpoints    = new HashMap<>();
     private final List< InMemoryUser >  inMemoryUsers       = new ArrayList<>();
-    private final List< String >        allowedClientIds    = new ArrayList<>();
     private final List< String >        sameSiteNoneDomains = new ArrayList<>();
     private final Map< String, String > issuers             = new LinkedHashMap<>();
-    private final Map< String, String > clientSecrets       = new HashMap<>();
+    private final Map< String, String > issuersWithJwks     = new LinkedHashMap<>();
 
     private String cookieDomain;
-    private String cognitoUrl;
     private String reverseProxyPrefix = "";
-    private String userPoolId;
-    private String awsRegion;
-    private String awsAccessKey;
-    private String awsSecretAccessKey;
+    private String audience;
+    private String kratosPublicUrl;
+    private String kratosAdminUrl;
+    private String kratosTokenizeAs;
+    private String hydraAdminUrl;
+    private long   principalCacheMaxSize    = DEFAULT_PRINCIPAL_CACHE_MAX_SIZE;
+    private long   principalCacheTtlSeconds = DEFAULT_PRINCIPAL_CACHE_TTL_SECONDS;
 
 
     public SecurityConfigurer() {
@@ -96,7 +101,7 @@ public class SecurityConfigurer {
     /**
      * The jwks uri is discovered from the issuer well known configuration, at startup.
      *
-     * @param issuer eg https://cognito-idp.eu-west-3.amazonaws.com/eu-west-3_XXXXXXXX
+     * @param issuer eg http://hydra:4444/
      */
     public SecurityConfigurer addIssuer( String issuer ) {
         return addIssuer( issuer, null );
@@ -104,8 +109,10 @@ public class SecurityConfigurer {
 
 
     /**
-     * @param issuer  eg https://cognito-idp.eu-west-3.amazonaws.com/eu-west-3_XXXXXXXX
-     * @param jwksUri eg https://cognito-idp.eu-west-3.amazonaws.com/eu-west-3_XXXXXXXX/.well-known/jwks.json
+     * An issuer publishing its keys over HTTP, typically Hydra.
+     *
+     * @param issuer  eg http://hydra:4444/
+     * @param jwksUri eg http://hydra:4444/.well-known/jwks.json
      */
     public SecurityConfigurer addIssuer( String issuer, String jwksUri ) {
         issuers.put( issuer, jwksUri );
@@ -114,48 +121,136 @@ public class SecurityConfigurer {
     }
 
 
-    public List< String > getAllowedClientIds() {
-        return allowedClientIds;
+    /**
+     * @return Issuer as key, json web key set as value
+     */
+    public Map< String, String > getIssuersWithJwks() {
+        return issuersWithJwks;
     }
 
 
     /**
-     * A Cognito access token carries no aud claim, client_id stands for it. When at least one client id is
-     * registered, any token issued for another client is rejected.
+     * An issuer whose public keys are provided statically, typically the Kratos tokenizer, which
+     * publishes no jwks endpoint. No HTTP call is made, neither at startup nor later.
+     *
+     * @param issuer   eg http://kratos:4433/
+     * @param jwksJson The public json web key set, eg {"keys":[{"kty":"RSA",...}]}. Never the private one.
      */
-    public SecurityConfigurer addAllowedClientId( String clientId ) {
-        allowedClientIds.add( clientId );
+    public SecurityConfigurer addIssuerWithJwks( String issuer, String jwksJson ) {
+        issuersWithJwks.put( issuer, jwksJson );
 
         return this;
     }
 
 
-    public String getClientSecret( String clientId ) {
-        return clientSecrets.get( clientId );
+    public String getAudience() {
+        return audience;
     }
 
 
     /**
-     * Secret of a confidential client, used to exchange an authorization code and to refresh a session.
-     * It never leaves the server.
+     * When set, a token whose aud claim does not contain this value is rejected, whatever its issuer.
+     *
+     * @param audience eg marea
      */
-    public SecurityConfigurer addClient( String clientId, String clientSecret ) {
-        clientSecrets.put( clientId, clientSecret );
+    public SecurityConfigurer setAudience( String audience ) {
+        this.audience = audience;
 
         return this;
     }
 
 
-    public String getCognitoUrl() {
-        return cognitoUrl;
+    public String getKratosPublicUrl() {
+        return kratosPublicUrl;
     }
 
 
     /**
-     * @param cognitoUrl Base url of the hosted ui, eg https://my-domain.auth.eu-west-3.amazoncognito.com
+     * Required by /auth/**, which drives the Kratos login flow.
+     *
+     * @param kratosPublicUrl eg http://kratos:4433, on the internal network
      */
-    public SecurityConfigurer setCognitoUrl( String cognitoUrl ) {
-        this.cognitoUrl = cognitoUrl;
+    public SecurityConfigurer setKratosPublicUrl( String kratosPublicUrl ) {
+        this.kratosPublicUrl = kratosPublicUrl;
+
+        return this;
+    }
+
+
+    public String getKratosAdminUrl() {
+        return kratosAdminUrl;
+    }
+
+
+    /**
+     * Required to administrate the identities and to extend a session.
+     *
+     * @param kratosAdminUrl eg http://kratos:4434, on the internal network, never exposed
+     */
+    public SecurityConfigurer setKratosAdminUrl( String kratosAdminUrl ) {
+        this.kratosAdminUrl = kratosAdminUrl;
+
+        return this;
+    }
+
+
+    public String getKratosTokenizeAs() {
+        return kratosTokenizeAs;
+    }
+
+
+    /**
+     * @param kratosTokenizeAs Name of the Kratos tokenizer template turning a session into a JWT, eg jwt_user_v1
+     */
+    public SecurityConfigurer setKratosTokenizeAs( String kratosTokenizeAs ) {
+        this.kratosTokenizeAs = kratosTokenizeAs;
+
+        return this;
+    }
+
+
+    public String getHydraAdminUrl() {
+        return hydraAdminUrl;
+    }
+
+
+    /**
+     * Required to administrate the clients.
+     *
+     * @param hydraAdminUrl eg http://hydra:4445, on the internal network, never exposed
+     */
+    public SecurityConfigurer setHydraAdminUrl( String hydraAdminUrl ) {
+        this.hydraAdminUrl = hydraAdminUrl;
+
+        return this;
+    }
+
+
+    public long getPrincipalCacheMaxSize() {
+        return principalCacheMaxSize;
+    }
+
+
+    /**
+     * Upper bound of the principals kept in memory, 20 000 by default.
+     */
+    public SecurityConfigurer setPrincipalCacheMaxSize( long principalCacheMaxSize ) {
+        this.principalCacheMaxSize = principalCacheMaxSize;
+
+        return this;
+    }
+
+
+    public long getPrincipalCacheTtlSeconds() {
+        return principalCacheTtlSeconds;
+    }
+
+
+    /**
+     * Delay before a change of roles is seen by an already cached caller, 300 seconds by default.
+     */
+    public SecurityConfigurer setPrincipalCacheTtlSeconds( long principalCacheTtlSeconds ) {
+        this.principalCacheTtlSeconds = principalCacheTtlSeconds;
 
         return this;
     }
@@ -215,8 +310,8 @@ public class SecurityConfigurer {
 
 
     /**
-     * Path scoping a cookie to the session endpoints (/auth/refresh and /auth/revoke), eg /auth
-     * without a proxy prefix, /api/auth with one.
+     * Path scoping a cookie to the session endpoints (/auth/**), eg /auth without a proxy prefix,
+     * /api/auth with one.
      */
     public String getSessionCookiePath() {
         return reverseProxyPrefix + DEFAULT_SESSION_COOKIE_PATH;
@@ -243,58 +338,6 @@ public class SecurityConfigurer {
         }
 
         return normalized;
-    }
-
-
-    public String getUserPoolId() {
-        return userPoolId;
-    }
-
-
-    /**
-     * Required to administrate the identities, eg eu-west-3_XXXXXXXX
-     */
-    public SecurityConfigurer setUserPoolId( String userPoolId ) {
-        this.userPoolId = userPoolId;
-
-        return this;
-    }
-
-
-    public String getAwsRegion() {
-        return awsRegion;
-    }
-
-
-    /**
-     * Region of the user pool, eg eu-west-3
-     */
-    public SecurityConfigurer setAwsRegion( String awsRegion ) {
-        this.awsRegion = awsRegion;
-
-        return this;
-    }
-
-
-    public String getAwsAccessKey() {
-        return awsAccessKey;
-    }
-
-
-    public String getAwsSecretAccessKey() {
-        return awsSecretAccessKey;
-    }
-
-
-    /**
-     * Credentials of the iam user allowed to administrate the user pool. When they are not set, the default
-     * aws credentials provider chain is used, which covers an instance profile or an irsa role.
-     */
-    public SecurityConfigurer setAwsCredentials( String awsAccessKey, String awsSecretAccessKey ) {
-        this.awsAccessKey       = awsAccessKey;
-        this.awsSecretAccessKey = awsSecretAccessKey;
-
-        return this;
     }
 
 

@@ -12,28 +12,36 @@ import java.util.StringJoiner;
 @Service
 public class CookieBuilder {
     public static final String REFRESH_TOKEN_COOKIE_NAME = "REFRESH_TOKEN";
-    public static final String CLIENT_ID_COOKIE_NAME     = "CLIENT_ID";
+    public static final String KRATOS_FLOW_COOKIE_NAME   = "KRATOS_FLOW";
 
-    private static final int ONE_YEAR = 60 * 60 * 24 * 365;
-    private static final int EXPIRED  = -1;
+    private static final int ONE_YEAR       = 60 * 60 * 24 * 365;
+    private static final int FIFTEEN_MINUTE = 60 * 15;
+    private static final int EXPIRED        = -1;
 
 
     public String accessToken( String accessToken ) {
-        return build( BearerTokenExtractor.ACCESS_TOKEN_COOKIE_NAME, accessToken, SecurityConfigurer.get().getRootCookiePath() );
+        return build( BearerTokenExtractor.ACCESS_TOKEN_COOKIE_NAME, accessToken, SecurityConfigurer.get().getRootCookiePath(), ONE_YEAR );
     }
 
 
+    /**
+     * Holds the Kratos session token, the durable credential: Ory issues no refresh token.
+     */
     public String refreshToken( String refreshToken ) {
-        return build( REFRESH_TOKEN_COOKIE_NAME, refreshToken, SecurityConfigurer.get().getSessionCookiePath() );
+        return build( REFRESH_TOKEN_COOKIE_NAME, refreshToken, SecurityConfigurer.get().getSessionCookiePath(), ONE_YEAR );
     }
 
 
-    public String clientId( String clientId ) {
-        return build( CLIENT_ID_COOKIE_NAME, clientId, SecurityConfigurer.get().getSessionCookiePath() );
+    /**
+     * Holds the Kratos login flow id between the two steps of the OTP login (/auth/login then
+     * /auth/login/verify). Its lifespan matches the one of the Kratos login flow (15 min).
+     */
+    public String kratosFlow( String flowId ) {
+        return build( KRATOS_FLOW_COOKIE_NAME, flowId, SecurityConfigurer.get().getSessionCookiePath(), FIFTEEN_MINUTE );
     }
 
 
-    protected String build( String name, String value, String path ) {
+    protected String build( String name, String value, String path, int maxAge ) {
         if ( value == null ) {
             value = "";
         }
@@ -42,7 +50,7 @@ public class CookieBuilder {
 
         StringJoiner cookie = new StringJoiner( "; " );
         cookie.add( name + "=" + value );
-        cookie.add( "Max-Age=" + ( value.isBlank() ? EXPIRED : ONE_YEAR ) );
+        cookie.add( "Max-Age=" + ( value.isBlank() ? EXPIRED : maxAge ) );
         cookie.add( "Path=" + path );
         cookie.add( "HttpOnly" );
         cookie.add( "Secure" );

@@ -37,12 +37,35 @@ public class CookieBuilderTest {
 
 
     /**
-     * The refresh token is replayed by both /auth/refresh and /auth/revoke.
+     * The session token is replayed by /auth/refresh and /auth/logout, the flow id by /auth/login/verify.
      */
     @Test
-    public void refresh_token_and_client_id_are_scoped_to_the_session_endpoints() {
+    public void refresh_token_and_kratos_flow_are_scoped_to_the_session_endpoints() {
         Assert.assertTrue( cookieBuilder.refreshToken( "token" ).contains( "Path=/auth;" ) );
-        Assert.assertTrue( cookieBuilder.clientId( "client" ).contains( "Path=/auth;" ) );
+        Assert.assertTrue( cookieBuilder.kratosFlow( "flow" ).contains( "Path=/auth;" ) );
+    }
+
+
+    /**
+     * Matches the lifespan of the Kratos login flow.
+     */
+    @Test
+    public void kratos_flow_lives_fifteen_minutes() {
+        String cookie = cookieBuilder.kratosFlow( "flow" );
+
+        Assert.assertTrue( cookie.contains( "KRATOS_FLOW=flow" ) );
+        Assert.assertTrue( cookie.contains( "Max-Age=900" ) );
+        Assert.assertTrue( cookie.contains( "HttpOnly" ) );
+        Assert.assertTrue( cookie.contains( "Secure" ) );
+    }
+
+
+    @Test
+    public void a_null_kratos_flow_expires_the_cookie() {
+        String cookie = cookieBuilder.kratosFlow( null );
+
+        Assert.assertTrue( cookie.contains( "KRATOS_FLOW=;" ) );
+        Assert.assertTrue( cookie.contains( "Max-Age=-1" ) );
     }
 
 
@@ -56,7 +79,7 @@ public class CookieBuilderTest {
 
         Assert.assertTrue( cookieBuilder.accessToken( "a.b.c" ).contains( "Path=/api;" ) );
         Assert.assertTrue( cookieBuilder.refreshToken( "token" ).contains( "Path=/api/auth;" ) );
-        Assert.assertTrue( cookieBuilder.clientId( "client" ).contains( "Path=/api/auth;" ) );
+        Assert.assertTrue( cookieBuilder.kratosFlow( "flow" ).contains( "Path=/api/auth;" ) );
     }
 
 

@@ -32,18 +32,27 @@ public class BearerTokenExtractor {
 
 
     public static boolean isJwtRequired( HttpServletRequest request ) {
-        if ( request.getRequestURI().contains( "/userinfo" ) ) {
+        return isJwtRequired( request.getRequestURI() );
+    }
+
+
+    public static boolean isJwtRequired( String uri ) {
+        if ( uri == null ) {
+            return false;
+        }
+
+        if ( uri.contains( "/userinfo" ) ) {
             return true;
         }
 
         for ( Map.Entry< String, String > entry : SecurityConfigurer.get().getSecuredEndpoints().entrySet() ) {
             if ( entry.getKey().startsWith( "REG:" ) ) {
-                if ( request.getRequestURI().matches( entry.getKey().replaceFirst( "REG:", "" ) ) ) {
+                if ( uri.matches( entry.getKey().replaceFirst( "REG:", "" ) ) ) {
                     return true;
                 }
             }
 
-            if ( request.getRequestURI().startsWith( entry.getKey().replace( "/**", "" ) ) ) {
+            if ( uri.startsWith( entry.getKey().replace( "/**", "" ) ) ) {
                 return true;
             }
 

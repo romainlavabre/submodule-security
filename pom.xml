@@ -6,12 +6,12 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.0</version>
+        <version>4.1.1</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>org.romainlavabre</groupId>
     <artifactId>security</artifactId>
-    <version>4.0.1</version>
+    <version>5.0.0</version>
 
     <properties>
         <java.version>21</java.version>
@@ -57,11 +57,10 @@
             <artifactId>dataconverter</artifactId>
             <version>1.0.3</version>
         </dependency>
-        <!-- AWS COGNITO -->
+        <!-- CACHE -->
         <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>cognitoidentityprovider</artifactId>
-            <version>2.44.4</version>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
         </dependency>
 
         <!-- TEST -->

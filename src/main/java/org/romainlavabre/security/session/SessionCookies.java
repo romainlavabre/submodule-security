@@ -1,44 +1,48 @@
 package org.romainlavabre.security.session;
 
 import jakarta.servlet.http.Cookie;
-import org.romainlavabre.exception.HttpBadRequestException;
-import org.romainlavabre.exception.HttpNotFoundException;
 import org.romainlavabre.request.Request;
-import org.romainlavabre.security.message.Error;
 
 /**
  * @author Romain Lavabre <romain.lavabre@proton.me>
  */
-public record SessionCookies( String clientId, String refreshToken ) {
+public final class SessionCookies {
 
-    public static SessionCookies read( Request request ) {
+    /**
+     * @return The Kratos session token, null when the caller holds none
+     */
+    public static String readSessionToken( Request request ) {
+        return read( request, CookieBuilder.REFRESH_TOKEN_COOKIE_NAME );
+    }
+
+
+    /**
+     * @return The Kratos login flow id, null when the caller holds none
+     */
+    public static String readKratosFlow( Request request ) {
+        return read( request, CookieBuilder.KRATOS_FLOW_COOKIE_NAME );
+    }
+
+
+    private static String read( Request request, String name ) {
         Cookie[] cookies = request.getCookies();
 
         if ( cookies == null ) {
-            throw new HttpBadRequestException( Error.IDP_NO_ACTIVE_SESSION, false );
+            return null;
         }
 
-        String clientId     = null;
-        String refreshToken = null;
+        String value = null;
 
         for ( Cookie cookie : cookies ) {
-            if ( CookieBuilder.CLIENT_ID_COOKIE_NAME.equals( cookie.getName() ) ) {
-                clientId = cookie.getValue();
-            }
-
-            if ( CookieBuilder.REFRESH_TOKEN_COOKIE_NAME.equals( cookie.getName() ) ) {
-                refreshToken = cookie.getValue();
+            if ( name.equals( cookie.getName() ) ) {
+                value = cookie.getValue();
             }
         }
 
-        if ( refreshToken == null || refreshToken.isBlank() ) {
-            throw new HttpBadRequestException( Error.IDP_NO_ACTIVE_SESSION, false );
-        }
+        return value == null || value.isBlank() ? null : value;
+    }
 
-        if ( clientId == null || clientId.isBlank() ) {
-            throw new HttpNotFoundException( Error.IDP_CLIENT_NOT_FOUND, false );
-        }
 
-        return new SessionCookies( clientId, refreshToken );
+    private SessionCookies() {
     }
 }
