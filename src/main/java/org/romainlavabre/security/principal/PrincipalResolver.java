@@ -25,4 +25,17 @@ public interface PrincipalResolver {
      * client to a user, or the other way around.
      */
     boolean isClient( Map< String, Object > claims );
+
+
+    /**
+     * Forgets the cached principal of an identity, so that a change of its roles or state applies on
+     * its next call rather than at the end of the cache TTL. Local to this JVM.
+     */
+    void evictIdentity( String sub );
+
+
+    /**
+     * Same as evictIdentity, for a client.
+     */
+    void evictClient( String clientId );
 }

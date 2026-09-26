@@ -80,6 +80,18 @@ public class PrincipalResolverImpl implements PrincipalResolver {
     }
 
 
+    @Override
+    public void evictIdentity( String sub ) {
+        cache().invalidate( PREFIX_IDENTITY + sub );
+    }
+
+
+    @Override
+    public void evictClient( String clientId ) {
+        cache().invalidate( PREFIX_CLIENT + clientId );
+    }
+
+
     /**
      * Built on first use rather than in the constructor: the bean may be instantiated before the host
      * application has initialized its SecurityConfigurer.

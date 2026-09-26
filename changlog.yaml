@@ -1,3 +1,16 @@
+5.1.0: |
+    Administration of the Ory identities and clients, and scopes enforced on client_credentials tokens.
+    Additive, except for applications implementing PrincipalResolver themselves.
+      - SecurityConfigurer.requireClientScopes(): a client token must carry the audience, and the scope
+        <prefix>:read on GET, HEAD and OPTIONS, <prefix>:write on any other method (403 otherwise). The prefix
+        is the audience, or setClientScopePrefix(). A user token is never concerned. Opt-in.
+      - PrincipalResolver.evictIdentity() and evictClient() drop a cached principal.
+      - KratosIdentities is added: list (paginated), find, findByEmail, replaceMetadataAdmin, setActive, delete,
+        revokeSessions.
+      - CreateIdentity.create( email, metadataAdmin ) is added.
+      - HydraClients: create with metadata, list (paginated), find, updateScopes, updateAudiences and
+        replaceMetadata are added.
+      - The ids put in an admin URL are checked (letters, digits, - and _ only), 400 otherwise.
 5.0.0: |
     Migration to Ory: Kratos for the users (email code, backend for frontend, JWT minted by the tokenizer),
     Hydra for the machine to machine clients (client_credentials). AWS Cognito is removed entirely.

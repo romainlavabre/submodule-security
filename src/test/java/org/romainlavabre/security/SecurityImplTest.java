@@ -331,5 +331,15 @@ public class SecurityImplTest {
         public boolean isClient( Map< String, Object > claims ) {
             return claims.get( "sub" ).equals( claims.get( "client_id" ) );
         }
+
+
+        @Override
+        public void evictIdentity( String sub ) {
+        }
+
+
+        @Override
+        public void evictClient( String clientId ) {
+        }
     }
 }

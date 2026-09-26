@@ -12,7 +12,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -28,6 +32,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -74,18 +79,33 @@ public class Security {
                         auth.requestMatchers( publicEndpoints ).permitAll();
                     }
 
+                    ClientGrantAuthorizationManager clientGrant = clientGrantAuthorizationManager();
+
                     for ( Map.Entry< String, String > entry : SecurityConfigurer.get().getSecuredEndpoints().entrySet() ) {
                         String role = new SecurityRole( entry.getValue() ).toString();
 
-                        if ( entry.getKey().startsWith( "REG:" ) ) {
-                            auth.requestMatchers( RegexRequestMatcher.regexMatcher( entry.getKey().replaceFirst( "REG:", "" ) ) )
-                                    .hasRole( role );
+                        AuthorizeHttpRequestsConfigurer< HttpSecurity >.AuthorizedUrl url = entry.getKey().startsWith( "REG:" )
+                                ? auth.requestMatchers( RegexRequestMatcher.regexMatcher( entry.getKey().replaceFirst( "REG:", "" ) ) )
+                                : auth.requestMatchers( entry.getKey() );
+
+                        if ( clientGrant == null ) {
+                            url.hasRole( role );
                         } else {
-                            auth.requestMatchers( entry.getKey() ).hasRole( role );
+                            url.access( AuthorizationManagers.allOf(
+                                    AuthorityAuthorizationManager.< RequestAuthorizationContext >hasRole( role ),
+                                    clientGrant
+                            ) );
                         }
                     }
 
-                    auth.anyRequest().authenticated();
+                    if ( clientGrant == null ) {
+                        auth.anyRequest().authenticated();
+                    } else {
+                        auth.anyRequest().access( AuthorizationManagers.allOf(
+                                AuthenticatedAuthorizationManager.< RequestAuthorizationContext >authenticated(),
+                                clientGrant
+                        ) );
+                    }
                 } )
                 .oauth2ResourceServer( oauth2 ->
                         oauth2
@@ -103,6 +123,24 @@ public class Security {
         }
 
         return http.build();
+    }
+
+
+    /**
+     * @return Null when the application did not call requireClientScopes(): the roles alone decide
+     */
+    protected ClientGrantAuthorizationManager clientGrantAuthorizationManager() {
+        SecurityConfigurer securityConfigurer = SecurityConfigurer.get();
+
+        if ( !securityConfigurer.isClientScopesRequired() ) {
+            return null;
+        }
+
+        return new ClientGrantAuthorizationManager(
+                principalResolver,
+                securityConfigurer.getAudience(),
+                securityConfigurer.getClientScopePrefix()
+        );
     }
 
 

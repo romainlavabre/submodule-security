@@ -9,6 +9,7 @@ import org.romainlavabre.security.config.SecurityConfigurer;
 import org.romainlavabre.security.message.Error;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,26 +25,37 @@ public class CreateIdentityImpl implements CreateIdentity {
 
     @Override
     public String create( String email ) {
+        return create( email, null );
+    }
+
+
+    @Override
+    public String create( String email, Map< String, Object > metadataAdmin ) {
         if ( email == null || email.isBlank() ) {
             throw new HttpBadRequestException( Error.IDP_USERNAME_REQUIRED, false );
         }
 
         String address = email.trim();
 
+        Map< String, Object > payload = new HashMap<>();
+        payload.put( "schema_id", SCHEMA_ID );
+        payload.put( "traits", Map.of( "email", address ) );
+        // The address is the one the application registered: no verification mail
+        payload.put( "verifiable_addresses", List.of( Map.of(
+                "value", address,
+                "via", "email",
+                "verified", true,
+                "status", "completed"
+        ) ) );
+
+        if ( metadataAdmin != null && !metadataAdmin.isEmpty() ) {
+            payload.put( "metadata_admin", metadataAdmin );
+        }
+
         Response response =
                 Rest.builder()
                         .post( KratosAdmin.url() + "/admin/identities" )
-                        .jsonBody( Map.of(
-                                "schema_id", SCHEMA_ID,
-                                "traits", Map.of( "email", address ),
-                                // The address is the one the application registered: no verification mail
-                                "verifiable_addresses", List.of( Map.of(
-                                        "value", address,
-                                        "via", "email",
-                                        "verified", true,
-                                        "status", "completed"
-                                ) )
-                        ) )
+                        .jsonBody( payload )
                         .buildAndSend();
 
         if ( response.status() == CONFLICT ) {

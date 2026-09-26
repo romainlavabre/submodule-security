@@ -25,7 +25,9 @@ public class SecurityConfigurer {
 
     private String cookieDomain;
     private String reverseProxyPrefix = "";
-    private String audience;
+    private String  audience;
+    private boolean clientScopesRequired;
+    private String  clientScopePrefix;
     private String kratosPublicUrl;
     private String kratosAdminUrl;
     private String kratosTokenizeAs;
@@ -155,6 +157,41 @@ public class SecurityConfigurer {
      */
     public SecurityConfigurer setAudience( String audience ) {
         this.audience = audience;
+
+        return this;
+    }
+
+
+    public boolean isClientScopesRequired() {
+        return clientScopesRequired;
+    }
+
+
+    /**
+     * A client_credentials token must then carry the configured audience, and the scope
+     * {@code <prefix>:read} on GET, HEAD and OPTIONS, {@code <prefix>:write} on any other method. A user
+     * token is never concerned. Requires setAudience().
+     */
+    public SecurityConfigurer requireClientScopes() {
+        this.clientScopesRequired = true;
+
+        return this;
+    }
+
+
+    /**
+     * @return The prefix of the client scopes, the audience when none was set
+     */
+    public String getClientScopePrefix() {
+        return clientScopePrefix != null && !clientScopePrefix.isBlank() ? clientScopePrefix : audience;
+    }
+
+
+    /**
+     * @param clientScopePrefix eg marea, for the scopes marea:read and marea:write
+     */
+    public SecurityConfigurer setClientScopePrefix( String clientScopePrefix ) {
+        this.clientScopePrefix = clientScopePrefix;
 
         return this;
     }
@@ -341,6 +378,12 @@ public class SecurityConfigurer {
     }
 
 
+    /**
+     * Fails fast on a configuration that would let every client through or none.
+     */
     public void build() {
+        if ( clientScopesRequired && ( audience == null || audience.isBlank() ) ) {
+            throw new IllegalStateException( "requireClientScopes() needs an audience, use SecurityConfigurer.setAudience()" );
+        }
     }
 }

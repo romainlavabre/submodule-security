@@ -161,6 +161,48 @@ public class PrincipalResolverImplTest {
     }
 
 
+    @Test
+    public void it_resolves_an_identity_again_once_evicted() {
+        ProviderSpy       provider = new ProviderSpy();
+        PrincipalResolver resolver = new PrincipalResolverImpl( provider );
+
+        resolver.resolve( claims( SUB, CLIENT_ID ) );
+        resolver.evictIdentity( SUB );
+        resolver.resolve( claims( SUB, CLIENT_ID ) );
+
+        Assert.assertEquals( 2, provider.identityCalls.size() );
+    }
+
+
+    @Test
+    public void it_resolves_a_client_again_once_evicted() {
+        ProviderSpy       provider = new ProviderSpy();
+        PrincipalResolver resolver = new PrincipalResolverImpl( provider );
+
+        resolver.resolve( claims( CLIENT_ID, CLIENT_ID ) );
+        resolver.evictClient( CLIENT_ID );
+        resolver.resolve( claims( CLIENT_ID, CLIENT_ID ) );
+
+        Assert.assertEquals( 2, provider.clientCalls.size() );
+    }
+
+
+    /**
+     * Evicting a client must not drop the identity sharing its id, and conversely.
+     */
+    @Test
+    public void it_evicts_only_the_targeted_kind() {
+        ProviderSpy       provider = new ProviderSpy();
+        PrincipalResolver resolver = new PrincipalResolverImpl( provider );
+
+        resolver.resolve( claims( CLIENT_ID, "another-client" ) );
+        resolver.evictClient( CLIENT_ID );
+        resolver.resolve( claims( CLIENT_ID, "another-client" ) );
+
+        Assert.assertEquals( 1, provider.identityCalls.size() );
+    }
+
+
     private Map< String, Object > claims( String sub, String clientId ) {
         Map< String, Object > claims = new HashMap<>();
 
