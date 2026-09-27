@@ -42,6 +42,13 @@ public interface KratosIdentities {
 
 
     /**
+     * Changes the login email of the identity, marked verified as on creation. 409 when another identity
+     * already logs in with it.
+     */
+    void updateEmail( String id, String email );
+
+
+    /**
      * An inactive identity can no longer log in. Its running sessions are not revoked: see
      * revokeSessions.
      */

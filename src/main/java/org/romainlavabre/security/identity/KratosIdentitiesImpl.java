@@ -1,6 +1,7 @@
 package org.romainlavabre.security.identity;
 
 import org.romainlavabre.exception.HttpBadRequestException;
+import org.romainlavabre.exception.HttpConflictException;
 import org.romainlavabre.exception.HttpInternalServerErrorException;
 import org.romainlavabre.rest.Response;
 import org.romainlavabre.rest.RequestBuilder;
@@ -23,6 +24,7 @@ import java.util.Optional;
 @Service
 public class KratosIdentitiesImpl implements KratosIdentities {
     protected static final int NOT_FOUND = 404;
+    protected static final int CONFLICT  = 409;
 
     protected static final int MIN_PAGE_SIZE = 1;
     protected static final int MAX_PAGE_SIZE = 1000;
@@ -95,6 +97,39 @@ public class KratosIdentitiesImpl implements KratosIdentities {
     @Override
     public void replaceMetadataAdmin( String id, Map< String, Object > metadataAdmin ) {
         patch( id, "/metadata_admin", metadataAdmin != null ? metadataAdmin : Map.of() );
+    }
+
+
+    @Override
+    public void updateEmail( String id, String email ) {
+        assertId( id );
+
+        if ( email == null || email.isBlank() ) {
+            throw new HttpBadRequestException( Error.IDP_USERNAME_REQUIRED, false );
+        }
+
+        String address = email.trim();
+
+        // Without the verifiable address, Kratos would keep the new one pending verification
+        Response response =
+                Rest.builder()
+                        .patch( KratosAdmin.url() + "/admin/identities/" + id )
+                        .jsonBody( List.of(
+                                Map.of( "op", "replace", "path", "/traits/email", "value", address ),
+                                Map.of( "op", "replace", "path", "/verifiable_addresses", "value", List.of( Map.of(
+                                        "value", address,
+                                        "via", "email",
+                                        "verified", true,
+                                        "status", "completed"
+                                ) ) )
+                        ) )
+                        .buildAndSend();
+
+        if ( response.status() == CONFLICT ) {
+            throw new HttpConflictException( Error.IDP_IDENTITY_ALREADY_EXISTS, false );
+        }
+
+        assertSuccess( response );
     }
 
 

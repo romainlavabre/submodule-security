@@ -5,6 +5,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.romainlavabre.exception.HttpBadRequestException;
+import org.romainlavabre.exception.HttpConflictException;
 import org.romainlavabre.exception.HttpInternalServerErrorException;
 import org.romainlavabre.security.config.SecurityConfigurer;
 import org.romainlavabre.security.message.Error;
@@ -112,6 +113,42 @@ public class KratosIdentitiesImplTest {
         Assert.assertEquals( "/admin/identities/" + ID, kratos.last().path() );
         Assert.assertTrue( kratos.last().body().contains( "\"path\":\"/metadata_admin\"" ) );
         Assert.assertTrue( kratos.last().body().contains( "\"role\":\"ROLE_BILLER\"" ) );
+    }
+
+
+    @Test
+    public void it_patches_the_email_as_a_verified_address() {
+        kratos.respond( 200, IDENTITY );
+
+        identities.updateEmail( ID, " john@marea.fr " );
+
+        Assert.assertEquals( "PATCH", kratos.last().method() );
+        Assert.assertEquals( "/admin/identities/" + ID, kratos.last().path() );
+        Assert.assertTrue( kratos.last().body().contains( "\"path\":\"/traits/email\"" ) );
+        Assert.assertTrue( kratos.last().body().contains( "\"path\":\"/verifiable_addresses\"" ) );
+        Assert.assertTrue( kratos.last().body().contains( "\"value\":\"john@marea.fr\"" ) );
+        Assert.assertTrue( kratos.last().body().contains( "\"verified\":true" ) );
+    }
+
+
+    @Test
+    public void it_refuses_an_email_another_identity_logs_in_with() {
+        kratos.respond( 409, "{}" );
+
+        HttpConflictException exception =
+                Assert.assertThrows( HttpConflictException.class, () -> identities.updateEmail( ID, "taken@marea.fr" ) );
+
+        Assert.assertEquals( Error.IDP_IDENTITY_ALREADY_EXISTS, exception.getMessage() );
+    }
+
+
+    @Test
+    public void it_requires_an_email_without_calling_kratos() {
+        HttpBadRequestException exception =
+                Assert.assertThrows( HttpBadRequestException.class, () -> identities.updateEmail( ID, " " ) );
+
+        Assert.assertEquals( Error.IDP_USERNAME_REQUIRED, exception.getMessage() );
+        Assert.assertEquals( 0, kratos.count() );
     }
 
 

@@ -1,3 +1,7 @@
+5.2.0: |
+    Additive.
+      - KratosIdentities.updateEmail() changes the login email of an identity, marked verified as on creation.
+        409 IDP_IDENTITY_ALREADY_EXISTS when another identity already logs in with it.
 5.1.0: |
     Administration of the Ory identities and clients, and scopes enforced on client_credentials tokens.
     Additive, except for applications implementing PrincipalResolver themselves.
