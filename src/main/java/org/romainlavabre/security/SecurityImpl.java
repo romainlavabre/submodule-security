@@ -1,8 +1,11 @@
 package org.romainlavabre.security;
 
 import org.romainlavabre.request.Request;
+import org.romainlavabre.security.principal.EffectiveRoles;
+import org.romainlavabre.security.principal.EffectiveRolesProvider;
 import org.romainlavabre.security.principal.Principal;
 import org.romainlavabre.security.principal.PrincipalResolver;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -26,6 +29,8 @@ public class SecurityImpl implements Security {
 
     protected Map< String, Object > body;
     protected Principal             principal;
+
+    protected EffectiveRolesProvider effectiveRolesProvider;
 
 
     public SecurityImpl( Request request, PrincipalResolver principalResolver, JwtDecoder jwtDecoder ) {
@@ -65,6 +70,15 @@ public class SecurityImpl implements Security {
     }
 
 
+    /**
+     * Optional: a setter rather than a constructor argument, so that the constructor stays the same.
+     */
+    @Autowired( required = false )
+    public void setEffectiveRolesProvider( final EffectiveRolesProvider effectiveRolesProvider ) {
+        this.effectiveRolesProvider = effectiveRolesProvider;
+    }
+
+
     @Override
     public long getId() {
         if ( hasAttribute( "external_id" ) ) {
@@ -91,9 +105,12 @@ public class SecurityImpl implements Security {
     }
 
 
+    /**
+     * The same roles as the filter chain applied to this call.
+     */
     @Override
     public Collection< String > getRoles() {
-        return this.principal != null ? this.principal.getRoles() : List.of();
+        return this.principal != null ? EffectiveRoles.of( this.principal, this.effectiveRolesProvider ) : List.of();
     }
 
 

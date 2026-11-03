@@ -18,6 +18,7 @@ public class SecurityConfigurer {
 
     private final List< String >        publicEndpoints     = new ArrayList<>();
     private final Map< String, String > securedEndpoints    = new HashMap<>();
+    private final Map< String, List< String > > securedEndpointsWithAnyRole = new LinkedHashMap<>();
     private final List< InMemoryUser >  inMemoryUsers       = new ArrayList<>();
     private final List< String >        sameSiteNoneDomains = new ArrayList<>();
     private final Map< String, String > issuers             = new LinkedHashMap<>();
@@ -74,6 +75,32 @@ public class SecurityConfigurer {
 
     public SecurityConfigurer addSecuredEndpoint( String matcher, String role ) {
         securedEndpoints.put( matcher, role );
+
+        return this;
+    }
+
+
+    /**
+     * @return Matcher as key, the roles opening it as value, in declaration order
+     */
+    public Map< String, List< String > > getSecuredEndpointsWithAnyRole() {
+        return securedEndpointsWithAnyRole;
+    }
+
+
+    /**
+     * Opens a space to any of the given roles, eg ROLE_OWNER or ROLE_OFFICE.
+     * <p>
+     * These spaces are matched before the ones of addSecuredEndpoint( matcher, role ), in declaration
+     * order: keep them narrower than the single role spaces they overlap, eg /company/management/**
+     * inside /company/**, never the opposite.
+     */
+    public SecurityConfigurer addSecuredEndpoint( String matcher, String... roles ) {
+        if ( roles == null || roles.length == 0 ) {
+            throw new IllegalArgumentException( "At least one role is required to secure " + matcher );
+        }
+
+        securedEndpointsWithAnyRole.put( matcher, List.of( roles ) );
 
         return this;
     }

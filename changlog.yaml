@@ -1,3 +1,10 @@
+5.3.0: |
+    Additive: an application declaring none of the new beans behaves exactly as in 5.2.0.
+      - EffectiveRolesProvider, optional bean: decides the roles of one call from the principal and the
+        current request, eg roles held in a tenant named by a header. Used by the filter chain and by
+        Security.getRoles() / hasRole() alike. Without it, the roles of the principal apply.
+      - SecurityConfigurer.addSecuredEndpoint( matcher, String... roles ) opens a space to any of the roles.
+        These spaces are matched before the single role ones, in declaration order.
 5.2.0: |
     Additive.
       - KratosIdentities.updateEmail() changes the login email of an identity, marked verified as on creation.

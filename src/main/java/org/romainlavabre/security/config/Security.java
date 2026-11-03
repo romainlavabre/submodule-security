@@ -7,7 +7,10 @@ import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import org.romainlavabre.security.BearerTokenExtractor;
 import org.romainlavabre.security.TokenClaims;
+import org.romainlavabre.security.principal.EffectiveRoles;
+import org.romainlavabre.security.principal.EffectiveRolesProvider;
 import org.romainlavabre.security.principal.PrincipalResolver;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -55,9 +58,21 @@ public class Security {
     protected final PrincipalResolver principalResolver;
     private final   ObjectMapper      objectMapper = new ObjectMapper();
 
+    protected EffectiveRolesProvider effectiveRolesProvider;
+
 
     public Security( PrincipalResolver principalResolver ) {
         this.principalResolver = principalResolver;
+    }
+
+
+    /**
+     * Optional: a setter rather than a constructor argument, so that an application declaring none
+     * starts as before.
+     */
+    @Autowired( required = false )
+    public void setEffectiveRolesProvider( EffectiveRolesProvider effectiveRolesProvider ) {
+        this.effectiveRolesProvider = effectiveRolesProvider;
     }
 
 
@@ -80,6 +95,27 @@ public class Security {
                     }
 
                     ClientGrantAuthorizationManager clientGrant = clientGrantAuthorizationManager();
+
+                    for ( Map.Entry< String, List< String > > entry : SecurityConfigurer.get().getSecuredEndpointsWithAnyRole().entrySet() ) {
+                        String[] roles = new String[ entry.getValue().size() ];
+
+                        for ( int i = 0; i < roles.length; i++ ) {
+                            roles[ i ] = new SecurityRole( entry.getValue().get( i ) ).toString();
+                        }
+
+                        AuthorizeHttpRequestsConfigurer< HttpSecurity >.AuthorizedUrl url = entry.getKey().startsWith( "REG:" )
+                                ? auth.requestMatchers( RegexRequestMatcher.regexMatcher( entry.getKey().replaceFirst( "REG:", "" ) ) )
+                                : auth.requestMatchers( entry.getKey() );
+
+                        if ( clientGrant == null ) {
+                            url.hasAnyRole( roles );
+                        } else {
+                            url.access( AuthorizationManagers.allOf(
+                                    AuthorityAuthorizationManager.< RequestAuthorizationContext >hasAnyRole( roles ),
+                                    clientGrant
+                            ) );
+                        }
+                    }
 
                     for ( Map.Entry< String, String > entry : SecurityConfigurer.get().getSecuredEndpoints().entrySet() ) {
                         String role = new SecurityRole( entry.getValue() ).toString();
@@ -197,14 +233,14 @@ public class Security {
 
     /**
      * Roles come from the application, through the PrincipalResolver: the identity provider carries none.
+     * An EffectiveRolesProvider, when declared, decides them per call.
      */
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
 
         jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter( jwt ->
-                principalResolver.resolve( jwt )
-                        .getRoles()
+                EffectiveRoles.of( principalResolver.resolve( jwt ), effectiveRolesProvider )
                         .stream()
                         .map( role -> ( GrantedAuthority ) new SimpleGrantedAuthority( role ) )
                         .toList()

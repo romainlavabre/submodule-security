@@ -160,6 +160,31 @@ public class SecurityImplTest {
     }
 
 
+    /**
+     * Security must answer the roles the filter chain applied, not those of the principal.
+     */
+    @Test
+    public void it_answers_the_roles_of_the_effective_roles_provider_when_declared() {
+        SecurityImpl security = new SecurityImpl( request( SECURED_URI, TOKEN ), new ResolverSpy(), new DecoderSpy( jwt( Map.of( "sub", SUB ) ) ) );
+
+        security.setEffectiveRolesProvider( ( principal, request ) -> List.of( "ROLE_OWNER" ) );
+
+        Assert.assertEquals( List.of( "ROLE_OWNER" ), security.getRoles() );
+        Assert.assertTrue( security.hasRole( "ROLE_OWNER" ) );
+        Assert.assertFalse( security.hasRole( "ROLE_PRESCRIBER" ) );
+    }
+
+
+    @Test
+    public void it_answers_no_role_when_anonymous_even_with_an_effective_roles_provider() {
+        SecurityImpl security = new SecurityImpl( request( PUBLIC_URI, TOKEN ), new ResolverSpy(), rejectingDecoder() );
+
+        security.setEffectiveRolesProvider( ( principal, request ) -> List.of( "ROLE_OWNER" ) );
+
+        Assert.assertTrue( security.getRoles().isEmpty() );
+    }
+
+
     @Test
     public void it_resolves_a_client_from_an_accepted_token() {
         SecurityImpl security = new SecurityImpl(
